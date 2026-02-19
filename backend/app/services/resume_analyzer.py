@@ -12,11 +12,22 @@ This is the ONLY step that modifies the uploaded content. All other steps
 operate on the marked .tex using the same marker-based parsing as before.
 """
 
+import hashlib
+
 from app.core.llm import get_llm_client
 from app.core.langfuse_client import get_prompt_messages, observe
 from app.core.constants import TEX_TRUNCATE_LENGTH
 from app.core.logger import logger
 from app.models import ResumeAnalysis
+
+# In-memory cache: SHA-256(tex_content) → ResumeAnalysis
+# Avoids re-calling the LLM when the same resume is submitted again (e.g. different JD).
+_analysis_cache: dict[str, ResumeAnalysis] = {}
+_MAX_CACHE = 20
+
+
+def _tex_hash(tex: str) -> str:
+    return hashlib.sha256(tex.encode()).hexdigest()
 
 
 @observe(name="resume-tailor-analyze")
@@ -24,6 +35,7 @@ async def analyze_uploaded_resume(tex_content: str) -> ResumeAnalysis | None:
     """Analyze an uploaded .tex file: insert markers and extract skills.
 
     Fetches prompt from Langfuse ("resume-tailor-analyze").
+    Results are cached by content hash — same resume skips the LLM call.
 
     Args:
         tex_content: Raw content of the uploaded .tex file.
@@ -32,6 +44,11 @@ async def analyze_uploaded_resume(tex_content: str) -> ResumeAnalysis | None:
         ResumeAnalysis with marked_tex, skills dict, and sections_found.
         None if the LLM call fails.
     """
+    content_hash = _tex_hash(tex_content)
+    if content_hash in _analysis_cache:
+        logger.info(f"Resume analysis cache HIT (hash={content_hash[:8]}...)")
+        return _analysis_cache[content_hash]
+
     truncated = tex_content[:TEX_TRUNCATE_LENGTH]
 
     template_vars = {"tex_content": truncated}
@@ -69,6 +86,12 @@ async def analyze_uploaded_resume(tex_content: str) -> ResumeAnalysis | None:
             f"skill_cats={list(analysis.skills.keys())}, "
             f"name='{analysis.person_name}'"
         )
+        # Cache the result
+        if len(_analysis_cache) >= _MAX_CACHE:
+            oldest_key = next(iter(_analysis_cache))
+            del _analysis_cache[oldest_key]
+        _analysis_cache[content_hash] = analysis
+
         return analysis
     except (KeyError, TypeError, ValueError) as e:
         logger.warning(f"Failed to parse resume analysis: {e}")

@@ -21,13 +21,16 @@ export default function Home() {
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [userInstructions, setUserInstructions] = useState("");
   const [result, setResult] = useState<TailorResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<string | null>(null);
+  const [refinementText, setRefinementText] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
-  const handleTailor = useCallback(async () => {
+  const runPipeline = useCallback(async (instructions: string, isRefine: boolean) => {
     if (jdText.trim().length < 50 || !resumeFile) return;
 
     // Cancel any in-flight request
@@ -37,7 +40,11 @@ export default function Home() {
 
     setLoading(true);
     setError(null);
-    setResult(null);
+    if (isRefine) {
+      setRefining(true);
+    } else {
+      setResult(null);
+    }
     setStep(PIPELINE_STEPS[0]);
 
     await tailorResumeStream(
@@ -45,6 +52,7 @@ export default function Home() {
         jd_text: jdText,
         job_title: jobTitle || undefined,
         company_name: companyName || undefined,
+        user_instructions: instructions || undefined,
         resume_file: resumeFile,
       },
       {
@@ -55,7 +63,9 @@ export default function Home() {
           setResult(response);
           setStep(null);
           setLoading(false);
+          setRefining(false);
           abortRef.current = null;
+          if (isRefine) setRefinementText("");
         },
         onError: (err: SSEErrorEvent | Error) => {
           if (controller.signal.aborted) return;
@@ -65,6 +75,7 @@ export default function Home() {
           setError(message);
           setStep(null);
           setLoading(false);
+          setRefining(false);
           abortRef.current = null;
         },
       },
@@ -75,15 +86,26 @@ export default function Home() {
     setLoading((prev) => {
       if (prev) {
         setStep(null);
+        setRefining(false);
         abortRef.current = null;
       }
       return false;
     });
   }, [jdText, jobTitle, companyName, resumeFile]);
 
+  const handleTailor = useCallback(() => {
+    runPipeline(userInstructions, false);
+  }, [runPipeline, userInstructions]);
+
+  const handleRefine = useCallback(() => {
+    if (!refinementText.trim()) return;
+    runPipeline(refinementText, true);
+  }, [runPipeline, refinementText]);
+
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
     setLoading(false);
+    setRefining(false);
     setStep(null);
   }, []);
 
@@ -111,10 +133,12 @@ export default function Home() {
             jobTitle={jobTitle}
             companyName={companyName}
             resumeFile={resumeFile}
+            userInstructions={userInstructions}
             onJdChange={setJdText}
             onJobTitleChange={setJobTitle}
             onCompanyChange={setCompanyName}
             onFileChange={setResumeFile}
+            onUserInstructionsChange={setUserInstructions}
             onSubmit={handleTailor}
             loading={loading}
             step={step}
@@ -140,7 +164,27 @@ export default function Home() {
               </div>
             )}
 
-            {result && <ResultsPanel result={result} companyName={companyName} />}
+            {result && (
+              <ResultsPanel
+                result={result}
+                companyName={companyName}
+                refinementText={refinementText}
+                onRefinementChange={setRefinementText}
+                onRefine={handleRefine}
+                refining={refining}
+              />
+            )}
+
+            {/* Refine loading overlay — shows progress while keeping results visible */}
+            {refining && step && (
+              <div className="mt-4 flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                <svg className="animate-spin h-5 w-5 text-blue-500 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <p className="text-sm font-medium text-blue-700" aria-live="polite">{step}</p>
+              </div>
+            )}
 
             {!result && !error && !loading && (
               <div className="h-full flex items-center justify-center">

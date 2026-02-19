@@ -2,6 +2,7 @@ export interface TailorRequest {
   jd_text: string;
   job_title?: string;
   company_name?: string;
+  user_instructions?: string;
   resume_file: File;
 }
 

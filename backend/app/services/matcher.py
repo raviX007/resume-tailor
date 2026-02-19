@@ -15,6 +15,7 @@ async def match_keywords(
     extracted: ExtractedKeywords,
     master_skills: dict,
     skills_on_resume: dict[str, list[str]] | None = None,
+    user_instructions: str = "",
 ) -> MatchResult | None:
     """Match JD keywords against resume skills using LLM.
 
@@ -26,6 +27,8 @@ async def match_keywords(
         master_skills: All candidate skills by category (from Step 0)
         skills_on_resume: Skills currently on the resume (from parser),
             used to determine injectable skills
+        user_instructions: Optional user instructions for tailoring emphasis
+            (e.g. "add Docker to skills", "emphasize AI experience")
 
     Returns:
         MatchResult or None if LLM call fails.
@@ -46,6 +49,7 @@ async def match_keywords(
         "jd_keywords": _format_skills_dict(jd_keywords),
         "resume_skills": _format_skills_dict(master_skills),
         "skills_on_resume": _format_skills_dict(skills_on_resume) if skills_on_resume else "Same as resume_skills",
+        "user_instructions": user_instructions if user_instructions else "No special instructions.",
     }
 
     default_config = {"temperature": 0.1, "max_tokens": 2000, "response_format": "json"}

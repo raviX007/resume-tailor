@@ -70,6 +70,19 @@ def compile_pdf(
     unique_id = uuid.uuid4().hex[:8]
     base_name = f"{name_slug}_{slug}_{unique_id}" if slug else f"{name_slug}_{unique_id}"
 
+    # Ensure \skillline command is defined (the analyzer LLM may inject it)
+    if r"\skillline" in tex_content and r"\newcommand{\skillline}" not in tex_content:
+        # Insert definition right after \begin{document} or before first \section
+        skillline_def = r"\newcommand{\skillline}[2]{\textbf{#1:} #2}"
+        if r"\begin{document}" in tex_content:
+            tex_content = tex_content.replace(
+                r"\begin{document}",
+                r"\begin{document}" + "\n" + skillline_def,
+                1,
+            )
+        else:
+            tex_content = skillline_def + "\n" + tex_content
+
     # Compile in a temp directory to avoid accumulating files
     with tempfile.TemporaryDirectory(prefix="resume_tailor_") as tmpdir:
         tmp_path = Path(tmpdir)
@@ -79,22 +92,21 @@ def compile_pdf(
         # Resolve pdflatex binary once (checks PATH, then macOS default location)
         pdflatex_bin = _find_pdflatex()
 
-        # Run pdflatex twice (second pass resolves references)
-        for pass_num in range(2):
-            result = subprocess.run(
-                [
-                    pdflatex_bin,
-                    "-interaction=nonstopmode",
-                    "-output-directory", str(tmp_path),
-                    str(tex_path),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=PDFLATEX_TIMEOUT,
-                cwd=str(tmp_path),
-            )
+        # Single-pass pdflatex — resumes have no cross-references or bibliography
+        result = subprocess.run(
+            [
+                pdflatex_bin,
+                "-interaction=nonstopmode",
+                "-output-directory", str(tmp_path),
+                str(tex_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=PDFLATEX_TIMEOUT,
+            cwd=str(tmp_path),
+        )
 
-            if result.returncode != 0 and pass_num == 1:
+        if result.returncode != 0:
                 error_lines = [
                     line for line in result.stdout.split("\n")
                     if line.startswith("!") or "Error" in line

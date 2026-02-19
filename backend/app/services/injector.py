@@ -12,7 +12,7 @@ Returns the modified .tex content and a unified diff.
 import difflib
 
 from app.models import ReorderPlan, MatchResult, ResumeSections
-from app.latex.writer import replace_between_markers, rebuild_skills_section, rebuild_projects_section
+from app.latex.writer import replace_between_markers, rebuild_skills_section, rebuild_projects_section, escape_latex
 from app.core.logger import logger
 
 
@@ -67,11 +67,11 @@ def inject_into_latex(
             if len(lines) > 1:
                 # Keep everything after the first two sentences, prepend new summary
                 remaining = ". ".join(lines[2:]) if len(lines) > 2 else ""
-                new_summary = plan.summary_first_line
+                new_summary = escape_latex(plan.summary_first_line)
                 if remaining:
                     new_summary += " " + remaining
             else:
-                new_summary = plan.summary_first_line
+                new_summary = escape_latex(plan.summary_first_line)
 
             modified_tex = replace_between_markers(
                 modified_tex, "% SUMMARY_START", "% SUMMARY_END", new_summary

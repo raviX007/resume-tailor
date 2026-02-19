@@ -9,10 +9,12 @@ interface JdInputPanelProps {
   jobTitle: string;
   companyName: string;
   resumeFile: File | null;
+  userInstructions: string;
   onJdChange: (value: string) => void;
   onJobTitleChange: (value: string) => void;
   onCompanyChange: (value: string) => void;
   onFileChange: (file: File | null) => void;
+  onUserInstructionsChange: (value: string) => void;
   onSubmit: () => void;
   loading: boolean;
   step?: string | null;
@@ -23,10 +25,12 @@ export const JdInputPanel = memo(function JdInputPanel({
   jobTitle,
   companyName,
   resumeFile,
+  userInstructions,
   onJdChange,
   onJobTitleChange,
   onCompanyChange,
   onFileChange,
+  onUserInstructionsChange,
   onSubmit,
   loading,
   step,
@@ -173,6 +177,19 @@ export const JdInputPanel = memo(function JdInputPanel({
             className="w-full mt-1 bg-white border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+      </div>
+
+      {/* Custom instructions */}
+      <div>
+        <label htmlFor="user-instructions" className="text-xs font-medium text-gray-500">Custom Instructions (optional)</label>
+        <textarea
+          id="user-instructions"
+          value={userInstructions}
+          onChange={(e) => onUserInstructionsChange(e.target.value)}
+          placeholder="e.g. Add Docker and Kubernetes to skills, emphasize backend experience..."
+          rows={2}
+          className="w-full mt-1 bg-white border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
       {/* Submit button */}

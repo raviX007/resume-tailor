@@ -101,6 +101,9 @@ FALLBACK_PROMPTS = {
             "- injectable: matched skills NOT currently on resume (can be added)\n\n"
             "All 7 categories must be present in all 3 dicts: "
             "languages, backend, frontend, ai_llm, databases, devops, domains\n\n"
+            "5. If user_instructions are provided, prioritize them when deciding which skills "
+            "are injectable and how aggressively to match. For example, if the user says "
+            "'add Docker to skills', treat Docker as injectable even if it wasn't found on the resume.\n\n"
             "Return ONLY valid JSON."
         ),
         "user": (
@@ -108,6 +111,7 @@ FALLBACK_PROMPTS = {
             "**JD Keywords:**\n{jd_keywords}\n\n"
             "**Resume Skills (all known):**\n{resume_skills}\n\n"
             "**Skills Currently on Resume:**\n{skills_on_resume}\n\n"
+            "**User Instructions:**\n{user_instructions}\n\n"
             "Return JSON:\n"
             '{{\n'
             '    "matched": {{"languages": [], "backend": [], "frontend": [], "ai_llm": [], "databases": [], "devops": [], "domains": []}},\n'

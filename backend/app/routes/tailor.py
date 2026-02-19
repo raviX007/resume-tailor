@@ -19,7 +19,7 @@ from app.services.matcher import match_keywords
 from app.services.reorderer import compute_reorder_plan
 from app.services.injector import inject_into_latex
 from app.services.compiler import compile_pdf
-from app.latex.parser import parse_resume_sections, get_skills_on_resume
+from app.latex.parser import parse_resume_sections, get_skills_on_resume, insert_section_markers
 from app.core.langfuse_client import observe, flush
 from app.core.constants import (
     MAX_UPLOAD_SIZE, MIN_TEX_SIZE, RATE_LIMIT_PER_MINUTE, PIPELINE_STEP_LABELS,
@@ -86,6 +86,7 @@ async def _execute_pipeline(
     jd_text: str,
     job_title: str,
     company_name: str,
+    user_instructions: str = "",
     on_step: Callable[[int, str], Awaitable[None]] | None = None,
 ) -> TailorResponse:
     """Run the 6-step tailoring pipeline.
@@ -95,6 +96,7 @@ async def _execute_pipeline(
         jd_text: Job description text.
         job_title: Optional job title.
         company_name: Optional company name.
+        user_instructions: Optional user instructions for tailoring emphasis.
         on_step: Optional async callback invoked at the start of each step
                  with (step_index, step_label). Used by the SSE endpoint.
 
@@ -123,9 +125,12 @@ async def _execute_pipeline(
 
     await _emit(1)
 
-    marked_tex = analysis.marked_tex
     master_skills = analysis.skills
     person_name = analysis.person_name
+
+    # Insert markers deterministically on the ORIGINAL tex — preserves formatting.
+    # The LLM analysis is only used for skill extraction, not tex modification.
+    marked_tex = insert_section_markers(raw_tex)
 
     # Parse the marked .tex into sections
     sections = parse_resume_sections(marked_tex)
@@ -133,7 +138,7 @@ async def _execute_pipeline(
 
     # Step 2: Match JD keywords against resume skills via LLM
     await _emit(2)
-    match = await match_keywords(extracted, master_skills, skills_on_resume)
+    match = await match_keywords(extracted, master_skills, skills_on_resume, user_instructions)
     if not match:
         raise PipelineError(500, "Skill matching failed", step=2)
 
@@ -196,6 +201,7 @@ async def tailor_resume(
     jd_text: str = Form(..., min_length=50),
     job_title: str = Form(default=""),
     company_name: str = Form(default=""),
+    user_instructions: str = Form(default=""),
     resume_file: UploadFile = File(...),
 ):
     """JSON endpoint: .tex file + JD text in -> tailored PDF out."""
@@ -203,7 +209,7 @@ async def tailor_resume(
     logger.info(f"Tailoring resume for: {company_name or 'unknown'} / {job_title or 'unknown'}")
 
     try:
-        result = await _execute_pipeline(raw_tex, jd_text, job_title, company_name)
+        result = await _execute_pipeline(raw_tex, jd_text, job_title, company_name, user_instructions)
     except PipelineError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
@@ -219,6 +225,7 @@ async def tailor_resume_stream(
     jd_text: str = Form(..., min_length=50),
     job_title: str = Form(default=""),
     company_name: str = Form(default=""),
+    user_instructions: str = Form(default=""),
     resume_file: UploadFile = File(...),
 ):
     """SSE streaming endpoint: same inputs, real-time progress events."""
@@ -234,7 +241,8 @@ async def tailor_resume_stream(
         async def run_pipeline() -> None:
             try:
                 result = await _execute_pipeline(
-                    raw_tex, jd_text, job_title, company_name, on_step=on_step,
+                    raw_tex, jd_text, job_title, company_name,
+                    user_instructions, on_step=on_step,
                 )
                 await queue.put(_sse_event("complete", result.model_dump()))
             except PipelineError as e:

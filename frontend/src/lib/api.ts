@@ -102,6 +102,7 @@ export async function tailorResumeStream(
   formData.append("resume_file", request.resume_file);
   if (request.job_title) formData.append("job_title", request.job_title);
   if (request.company_name) formData.append("company_name", request.company_name);
+  if (request.user_instructions) formData.append("user_instructions", request.user_instructions);
 
   const controller = new AbortController();
   let timedOut = false;
@@ -165,6 +166,7 @@ export async function tailorResume(
   formData.append("resume_file", request.resume_file);
   if (request.job_title) formData.append("job_title", request.job_title);
   if (request.company_name) formData.append("company_name", request.company_name);
+  if (request.user_instructions) formData.append("user_instructions", request.user_instructions);
 
   // Create a combined abort controller for timeout + caller cancellation
   const controller = new AbortController();

@@ -4,6 +4,27 @@ import re
 
 from app.core.logger import logger
 
+# Characters that are special in LaTeX and must be escaped in plain text.
+_LATEX_SPECIAL = {
+    "&": r"\&",
+    "%": r"\%",
+    "$": r"\$",
+    "#": r"\#",
+    "_": r"\_",
+    "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
+}
+# Regex matching any single special character above.
+_LATEX_ESCAPE_RE = re.compile("|".join(re.escape(c) for c in _LATEX_SPECIAL))
+
+
+def escape_latex(text: str) -> str:
+    """Escape special LaTeX characters in plain text (keywords, summary, etc.).
+
+    Does NOT touch existing LaTeX commands (backslash-prefixed sequences).
+    """
+    return _LATEX_ESCAPE_RE.sub(lambda m: _LATEX_SPECIAL[m.group()], text)
+
 
 def replace_between_markers(
     tex: str,
@@ -35,12 +56,15 @@ def rebuild_skills_section(
         category_order: ordered list of category names (most relevant first)
         injectable: {cat_name: [keyword, ...]} to append
     """
-    lines = []
-    for cat in category_order:
-        if cat not in skills_dict:
-            continue
+    # Collect ordered entries first so we know which is last
+    ordered_cats = [cat for cat in category_order if cat in skills_dict]
 
+    entries = []
+    for cat in ordered_cats:
         content = skills_dict[cat].strip()
+
+        # Strip trailing \\ — we re-add them between entries below
+        content = re.sub(r"\s*\\\\\s*$", "", content)
 
         # Inject keywords into the \skillline{...}{THESE} content
         if injectable.get(cat):
@@ -54,12 +78,21 @@ def rebuild_skills_section(
                     if kw.lower() not in existing_lower
                 ]
                 if new_keywords:
-                    updated = existing.rstrip() + ", " + ", ".join(new_keywords)
+                    escaped = [escape_latex(kw) for kw in new_keywords]
+                    updated = existing.rstrip() + ", " + ", ".join(escaped)
                     content = content[:m.start()] + m.group(1) + updated + "}" + content[m.end():]
                     logger.info(f"Injected into {cat}: {new_keywords}")
 
+        entries.append((cat, content))
+
+    # Rebuild with \\ between each entry (not after the last one)
+    lines = []
+    for i, (cat, content) in enumerate(entries):
         lines.append(f"% SKILL_CAT:{cat}")
-        lines.append(content)
+        if i < len(entries) - 1:
+            lines.append(content + " \\\\")
+        else:
+            lines.append(content)
 
     return "\n".join(lines)
 
