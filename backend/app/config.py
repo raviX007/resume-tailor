@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     output_dir: str = "output"
     allowed_origins: str = "http://localhost:3000"
     log_level: str = "INFO"
+    auth_username: str = ""
+    auth_password: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

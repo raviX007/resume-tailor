@@ -3,6 +3,14 @@ import { TailorRequest, TailorResponse } from "./types";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 const REQUEST_TIMEOUT_MS = 120_000; // 2 minutes
 
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const username = sessionStorage.getItem("auth_username") || "";
+  const password = sessionStorage.getItem("auth_password") || "";
+  if (!username) return {};
+  return { "X-Auth-Username": username, "X-Auth-Password": password };
+}
+
 // ---------------------------------------------------------------------------
 // SSE Types
 // ---------------------------------------------------------------------------
@@ -118,6 +126,7 @@ export async function tailorResumeStream(
   try {
     const response = await fetch(`${API_BASE}/api/tailor-stream`, {
       method: "POST",
+      headers: getAuthHeaders(),
       body: formData,
       signal: controller.signal,
     });
@@ -184,6 +193,7 @@ export async function tailorResume(
   try {
     const response = await fetch(`${API_BASE}/api/tailor`, {
       method: "POST",
+      headers: getAuthHeaders(),
       body: formData,
       signal: controller.signal,
     });

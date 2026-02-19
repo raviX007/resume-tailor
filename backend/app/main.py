@@ -22,7 +22,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from app.config import load_settings  # noqa: E402
 from app.core.constants import RATE_LIMIT_PER_MINUTE  # noqa: E402
 from app.core.logger import logger  # noqa: E402
-from app.middleware import RequestIdMiddleware, request_id_var  # noqa: E402
+from app.middleware import RequestIdMiddleware, PasswordGateMiddleware, request_id_var  # noqa: E402
 from app.routes import tailor, health  # noqa: E402
 
 settings = load_settings()
@@ -44,11 +44,18 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "X-Auth-Username", "X-Auth-Password"],
     expose_headers=["X-Request-ID"],
 )
 
-# Request ID middleware (runs after CORS, before route handlers)
+# Auth middleware (runs after CORS, before route handlers)
+app.add_middleware(
+    PasswordGateMiddleware,
+    username=settings.auth_username,
+    password=settings.auth_password,
+)
+
+# Request ID middleware (innermost — runs closest to route handlers)
 app.add_middleware(RequestIdMiddleware)
 
 

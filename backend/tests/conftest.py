@@ -21,6 +21,18 @@ def _disable_rate_limiter():
     tailor_route.limiter.enabled = True
 
 
+@pytest.fixture(autouse=True)
+def _clear_llm_caches():
+    """Clear in-memory LLM caches between tests to prevent interference."""
+    from app.services.resume_analyzer import _analysis_cache
+    from app.services.extractor import _extraction_cache
+    _analysis_cache.clear()
+    _extraction_cache.clear()
+    yield
+    _analysis_cache.clear()
+    _extraction_cache.clear()
+
+
 from app.models import (
     ExtractedKeywords,
     MatchResult,

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { tailorResumeStream, type SSEProgressEvent, type SSEErrorEvent } from "@/lib/api";
 import type { TailorResponse } from "@/lib/types";
 import { JdInputPanel } from "@/components/jd-input-panel";
 import { ResultsPanel } from "@/components/results-panel";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { PasswordGate } from "@/components/password-gate";
 
 const PIPELINE_STEPS = [
   "Analyzing resume...",
@@ -16,7 +17,11 @@ const PIPELINE_STEPS = [
   "Compiling PDF...",
 ];
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+
 export default function Home() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
   const [jdText, setJdText] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -29,6 +34,31 @@ export default function Home() {
   const [step, setStep] = useState<string | null>(null);
   const [refinementText, setRefinementText] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const username = sessionStorage.getItem("auth_username") || "";
+      const password = sessionStorage.getItem("auth_password") || "";
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/verify`, {
+          method: "POST",
+          headers: {
+            "X-Auth-Username": username,
+            "X-Auth-Password": password,
+          },
+        });
+        const data = await res.json();
+        if (!data.auth_enabled || data.valid) {
+          setAuthenticated(true);
+        }
+      } catch {
+        // Backend unreachable — show login anyway, it'll fail with a clear message
+      }
+      setAuthChecking(false);
+    };
+    checkAuth();
+  }, []);
 
   const runPipeline = useCallback(async (instructions: string, isRefine: boolean) => {
     if (jdText.trim().length < 50 || !resumeFile) return;
@@ -108,6 +138,18 @@ export default function Home() {
     setRefining(false);
     setStep(null);
   }, []);
+
+  if (authChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return <PasswordGate onAuthenticated={() => setAuthenticated(true)} />;
+  }
 
   return (
     <main className="h-screen flex flex-col">
