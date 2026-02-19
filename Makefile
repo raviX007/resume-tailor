@@ -13,7 +13,7 @@ help: ## Show this help
 # ── Setup ─────────────────────────────────────────────────────────────
 
 $(VENV)/bin/activate:
-	python3 -m venv $(VENV)
+	python3.12 -m venv $(VENV)
 
 $(VENV)/.installed: $(VENV)/bin/activate backend/requirements-dev.txt backend/requirements.txt
 	$(PIP) install -r backend/requirements-dev.txt
